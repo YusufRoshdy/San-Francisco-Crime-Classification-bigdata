@@ -26,7 +26,7 @@ CREATE TABLE crime_data (
 
 -- Load data from the CSV file (Replace 'path/to/your/file.csv' with the actual file path)
 COPY crime_data (dates, category, descript, day_of_week, pd_district, resolution, address, x, y)
-FROM '/root/San-Francisco-Crime-Classification-bigdata/data/train.csv' DELIMITER ',' CSV HEADER;
+FROM '/data/San-Francisco-Crime-Classification-bigdata/data/train.csv' DELIMITER ',' CSV HEADER;
 
 -- Perform any additional CRUD operations if needed
 
