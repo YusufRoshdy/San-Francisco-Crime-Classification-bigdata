@@ -5,6 +5,9 @@ psql -U postgres -c 'CREATE DATABASE project;'
 
 psql -U postgres -d project -f sql/db.sql
 
+
+hdfs dfs -rm -r /project
+
 sqoop import-all-tables \
     -Dmapreduce.job.user.classpath.first=true \
     --connect jdbc:postgresql://localhost/project \
