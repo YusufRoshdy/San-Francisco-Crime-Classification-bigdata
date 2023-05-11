@@ -17,3 +17,6 @@ sqoop import-all-tables \
     --compression-codec=snappy \
     --outdir /project/avsc \
     --m 1
+
+hdfs dfs -mkdir /project/avsc
+hdfs dfs -put *.avsc /project/avsc
