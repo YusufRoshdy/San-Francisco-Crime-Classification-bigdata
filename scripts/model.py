@@ -1,33 +1,26 @@
-from pyspark.sql.types import (
-    StructType,
-    StructField,
-    IntegerType,
-    StringType,
-    BooleanType,
-    DateType,
-    TimestampType,
-    DoubleType,
-)
+"""
+This module contains the following classes: DateTimeTransformer, LoggingEvaluator,
+HepyrParameterTuning, and SanFranciscoCrimeClassification.
+
+These classes are used for transforming data, evaluating machine learning models,
+parameter tuning, and classifying crime in San Francisco, respectively.
+"""
+
+import random
+import os
+import math
+import warnings
+
+
 from pyspark.ml.feature import (
     ChiSqSelector,
     StringIndexer,
     OneHotEncoder,
     VectorAssembler,
-)
-from pyspark.ml.feature import (
-    StringIndexer,
-    OneHotEncoder,
-    VectorAssembler,
-    HashingTF,
-    IDF,
     Word2Vec,
     Tokenizer,
-    MinMaxScaler,
-    Word2VecModel,
-    Word2Vec,
 )
 
-from pyspark.sql.functions import from_unixtime, col
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import LogisticRegression
 from pyspark.ml.classification import RandomForestClassifier
@@ -37,55 +30,60 @@ from pyspark.ml.param.shared import HasInputCol, HasOutputCols
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.functions import (
-    udf,
     col,
-    explode,
     dayofmonth,
     month,
     year,
-    radians,
     sin,
     cos,
-    lit,
+    from_unixtime,
 )
-from pyspark.sql import DataFrame
-import math
 
 from pyspark.sql import SparkSession
-import pandas as pd
-import utils
-import os
 
-# suppress warnings
-import warnings
+import utils
+
 
 warnings.filterwarnings("ignore")
 
 # add python random seed
-import random
-
 random.seed(42)
 
 
 class DateTimeTransformer(Transformer, HasInputCol, HasOutputCols):
-    def __init__(self, inputCol=None, outputCols=None):
-        super(DateTimeTransformer, self).__init__()
-        self._set(inputCol=inputCol)
-        self._set(outputCols=outputCols)
+    """
+    DateTimeTransformer is a class for transforming datetime features
+    into two separate features for the sine and cosine transformations of the date time.
 
-    def _transform(self, df):
+    This class inherits from Transformer, HasInputCol, and HasOutputCols.
+    """
+
+    def __init__(self, input_col=None, output_cols=None):
+        super(DateTimeTransformer, self).__init__()
+        self._set(inputCol=input_col)
+        self._set(outputCols=output_cols)
+
+    def _transform(self, dataframe):
         input_col = self.getInputCol()
         output_cols = self.getOutputCols()
 
-        df = df.withColumn(output_cols[0], sin(2 * math.pi * col(input_col) / 12))
-        df = df.withColumn(output_cols[1], cos(2 * math.pi * col(input_col) / 12))
+        dataframe = dataframe.withColumn(
+            output_cols[0], sin(2 * math.pi * col(input_col) / 12)
+        )
+        dataframe = dataframe.withColumn(
+            output_cols[1], cos(2 * math.pi * col(input_col) / 12)
+        )
 
-        return df
+        return dataframe
 
 
 class LoggingEvaluator(MulticlassClassificationEvaluator):
-    def __init__(self, **kwargs):
-        super(LoggingEvaluator, self).__init__(**kwargs)
+    """
+    LoggingEvaluator is a class for evaluating multiclass classification models
+    and logging the results.
+
+    This class inherits from MulticlassClassificationEvaluator.
+    """
 
     def _evaluate(self, dataset):
         metric = super(LoggingEvaluator, self)._evaluate(dataset)
@@ -95,6 +93,12 @@ class LoggingEvaluator(MulticlassClassificationEvaluator):
 
 
 class HepyrParameterTuning:
+    """
+    HepyrParameterTuning is a class for tuning the parameters of a machine learning model.
+
+    It allows for systematic grid search or random search over specified parameter ranges.
+    """
+
     def __init__(
         self,
         model_name,
@@ -111,21 +115,21 @@ class HepyrParameterTuning:
         self.models_dir = models_dir
         self.output_dir = output_dir
         if model_name == "logistic_regression":
-            lr = LogisticRegression(
+            logistic_regression = LogisticRegression(
                 featuresCol="features", labelCol="label", predictionCol="prediction"
             )
             self.param_grid = (
                 ParamGridBuilder()
-                .addGrid(lr.regParam, [0.0, 0.1, 0.5])
-                .addGrid(lr.elasticNetParam, [0.0, 0.5, 1.0])
-                .addGrid(lr.maxIter, [5, 10])
-                .addGrid(lr.tol, [1e-8, 1e-6, 1e-4])
+                .addGrid(logistic_regression.regParam, [0.0, 0.1, 0.5])
+                .addGrid(logistic_regression.elasticNetParam, [0.0, 0.5, 1.0])
+                .addGrid(logistic_regression.maxIter, [5, 10])
+                .addGrid(logistic_regression.tol, [1e-8, 1e-6, 1e-4])
                 .build()
             )
-            self.model = lr
+            self.model = logistic_regression
 
         elif model_name == "random_forest":
-            rf = RandomForestClassifier(
+            random_forest = RandomForestClassifier(
                 featuresCol="features",
                 labelCol="label",
                 predictionCol="prediction",
@@ -133,20 +137,20 @@ class HepyrParameterTuning:
             )
             self.param_grid = (
                 ParamGridBuilder()
-                .addGrid(rf.maxDepth, [5, 10, 15])
-                .addGrid(rf.numTrees, [10, 20, 30])
+                .addGrid(random_forest.maxDepth, [5, 10, 15])
+                .addGrid(random_forest.numTrees, [10, 20, 30])
                 .build()
             )
             self.param_grid = (
                 ParamGridBuilder()
-                .addGrid(rf.maxDepth, [15])
-                .addGrid(rf.numTrees, [1])
-                .addGrid(rf.maxBins, [20])
+                .addGrid(random_forest.maxDepth, [15])
+                .addGrid(random_forest.numTrees, [1])
+                .addGrid(random_forest.maxBins, [20])
                 .build()
             )
-            self.model = rf
+            self.model = random_forest
         elif model_name == "decision_tree":
-            dt = DecisionTreeClassifier(
+            decision_tree = DecisionTreeClassifier(
                 featuresCol="features",
                 labelCol="label",
                 predictionCol="prediction",
@@ -154,21 +158,38 @@ class HepyrParameterTuning:
             )
             # self.param_grid = (
             #     ParamGridBuilder()
-            #     .addGrid(dt.maxDepth, [5, 10, 15])
-            #     .addGrid(dt.maxBins, [10, 20, 30])
+            #     .addGrid(decision_tree.maxDepth, [5, 10, 15])
+            #     .addGrid(decision_tree.maxBins, [10, 20, 30])
             #     .build()
             # )
             self.param_grid = (
                 ParamGridBuilder()
-                .addGrid(dt.maxDepth, [10])
-                .addGrid(dt.maxBins, [30])
+                .addGrid(decision_tree.maxDepth, [10])
+                .addGrid(decision_tree.maxBins, [30])
                 .build()
             )
-            self.model = dt
+            self.model = decision_tree
         else:
             raise ValueError("Model", model_name, " is not supported")
 
     def tune_model(self, train_data, test_data):
+        """
+        This method is used for tuning the hyperparameters of the machine learning model.
+
+        It uses a grid search or a random search approach to find the best hyperparameters
+        that optimize the performance of the model on the validation set.
+
+        Parameters:
+        train_data (pyspark.sql.DataFrame): The training data on which the model will be trained.
+            It is assumed to be preprocessed and ready for training.
+
+        test_data (pyspark.sql.DataFrame): The validation data on which the model's performance
+            is evaluated during the tuning process. It is assumed to be preprocessed
+            and ready for validation.
+
+        Returns:
+        model: The model with the best hyperparameters found during the tuning process.
+        """
         # get the shape of the data
         print(
             "Train data shape:",
@@ -207,6 +228,21 @@ class HepyrParameterTuning:
             self.fine_tune_rf(train_data, test_data)
 
     def fine_tune_rf(self, train_data, test_data):
+        """
+        This method is used for fine-tuning the Random Forest classifier.
+
+        It uses a grid search approach to find the best combination of 'max_depth' and 'num_trees'
+        hyperparameters that optimize the performance of the model on the test data.
+
+        Parameters:
+        train_data (pyspark.sql.DataFrame): The training data on which
+            the Random Forest model will be trained.
+        test_data (pyspark.sql.DataFrame): The validation data on which
+            the model's performance is evaluated during the tuning process.
+
+        Returns:
+        None: The function updates the best_params and best_score attributes of the class object.
+        """
         max_depths = [5, 10, 15]
         num_trees = [10, 20, 30]
 
@@ -218,7 +254,7 @@ class HepyrParameterTuning:
         for num_tree in num_trees:
             for max_depth in max_depths:
                 # Create the model
-                rf = RandomForestClassifier(
+                random_forest = RandomForestClassifier(
                     labelCol="label",
                     featuresCol="features",
                     numTrees=num_tree,
@@ -226,7 +262,7 @@ class HepyrParameterTuning:
                     seed=self.seed,
                 )
                 # Fit the model
-                model = rf.fit(train_data)
+                model = random_forest.fit(train_data)
                 # Make predictions
                 predictions = model.transform(test_data)
                 # Initialize evaluator
@@ -251,14 +287,14 @@ class HepyrParameterTuning:
 
         print("Best parameters:", best_params, ", Score:", best_score)
         # save the best model
-        rf = RandomForestClassifier(
+        random_forest = RandomForestClassifier(
             labelCol="label",
             featuresCol="features",
             numTrees=best_params[0],
             maxDepth=best_params[1],
             seed=self.seed,
         )
-        model = rf.fit(train_data)
+        model = random_forest.fit(train_data)
 
         # save the model summary to the output directory
         utils.log_model_info(model, self.output_dir, "best")
@@ -266,11 +302,18 @@ class HepyrParameterTuning:
         # save the best model
         model_name = model.__class__.__name__
         model.write().overwrite().save(
-            os.path.join(self.models_dir, "best_" + "model_name" + ".model")
+            os.path.join(self.models_dir, "best_" + model_name + ".model")
         )
 
 
 class SanFranciscoCrimeClassification:
+    """
+    SanFranciscoCrimeClassification is a class for building and training
+    a model to classify crime in San Francisco.
+
+    It involves data preprocessing, feature extraction, model training, and evaluation steps.
+    """
+
     def __init__(self, data_path, output_dir, models_dir):
         spark = (
             SparkSession.builder.appName("BDT Project")
@@ -290,14 +333,33 @@ class SanFranciscoCrimeClassification:
         self.output_dir = output_dir
         self.models_dir = models_dir
 
-    def read_data_spark(self, data_path):
-        df = self.spark.read.format("avro").table("projectdb.crime_data")
-        df.createOrReplaceTempView("df")
+    def read_data_spark(self):
+        """
+        This method is responsible for reading the crime data from a Spark table,
+        preprocessing it and returning a DataFrame.
 
-        df = df.withColumn("Dates", (col("Dates") / 1000))
-        df = df.withColumn("Dates", from_unixtime(col("Dates")).cast("timestamp"))
-        df = (
-            df.withColumnRenamed(" id", "Id")
+        The preprocessing steps include:
+        1. Converting the 'Dates' column from UNIX timestamp (bigint) to a standard timestamp.
+        2. Renaming the columns to more appropriate names for easier handling downstream.
+
+        The method assumes the existence of a Spark table named 'projectdb.crime_data'
+        with specific columns.
+
+        Returns:
+        df (pyspark.sql.DataFrame): The preprocessed DataFrame with appropriately named columns.
+
+        Note: This function prints the DataFrame after preprocessing. Consider redirecting stdout
+        if running in a non-interactive session.
+        """
+        dataframe = self.spark.read.format("avro").table("projectdb.crime_data")
+        dataframe.createOrReplaceTempView("df")
+
+        dataframe = dataframe.withColumn("Dates", (col("Dates") / 1000))
+        dataframe = dataframe.withColumn(
+            "Dates", from_unixtime(col("Dates")).cast("timestamp")
+        )
+        dataframe = (
+            dataframe.withColumnRenamed(" id", "Id")
             .withColumnRenamed("Dates", "Dates")
             .withColumnRenamed("category", "Category")
             .withColumnRenamed("descript", "Descript")
@@ -308,22 +370,38 @@ class SanFranciscoCrimeClassification:
             .withColumnRenamed("x", "X")
             .withColumnRenamed("y", "Y")
         )
-        print(df)
-        return df
+        print(dataframe)
+        return dataframe
 
     def feature_selection(self):
+        """
+        This method applies feature selection to the dataset.
+
+        The steps in the feature selection process are as follows:
+        1. Convert 'Category' to numerical form with the help of StringIndexer.
+        2. Convert categorical columns to numerical form with the help of StringIndexer
+        and OneHotEncoder.
+        3. Use VectorAssembler to assemble these features into a vector.
+
+        The method modifies the DataFrame in-place, transforming the categorical columns
+        'DayOfWeek', 'PdDistrict', and 'Resolution' to numerical form
+        and assembling them into a vector.
+
+        Returns:
+        df_new (pyspark.sql.DataFrame): The DataFrame with the new features added.
+        """
         cat_cols = ["DayOfWeek", "PdDistrict", "Resolution"]
 
-        df_new = self.read_data_spark(self.data_path)
+        df_new = self.read_data_spark()
 
         indexer = StringIndexer(inputCol="Category", outputCol="Category_index")
         df_new = indexer.fit(df_new).transform(df_new)
 
         # convert categorical columns to numerical
-        for col in cat_cols:
-            indexer = StringIndexer(inputCol=col, outputCol=col + "_index")
+        for category in cat_cols:
+            indexer = StringIndexer(inputCol=category, outputCol=category + "_index")
             encoder = OneHotEncoder(
-                inputCols=[col + "_index"], outputCols=[col + "_vec"]
+                inputCols=[category + "_index"], outputCols=[category + "_vec"]
             )
             df_new = indexer.fit(df_new).transform(df_new)
             df_new = encoder.fit(df_new).transform(df_new)
@@ -349,9 +427,26 @@ class SanFranciscoCrimeClassification:
         return result
 
     def prepare_pipeline(self):
+        """
+        This method prepares the data pipeline for the model.
+
+        It reads the data using the `read_data_spark` method and performs
+            several preprocessing steps.
+
+        These steps include:
+        1. Extracting date-time features from the 'Dates' column such as 'month', 'year',
+            'day', 'hour', and 'minute'.
+        2. Converting the time features to integer format.
+        3. Converting categorical features into numerical form.
+
+        The method constructs a new DataFrame with the newly created features and returns it.
+
+        Returns:
+        df_new (pyspark.sql.DataFrame): The DataFrame with the new features added.
+        """
         print("Preparing pipeline...")
 
-        df_new = self.read_data_spark(self.data_path)
+        df_new = self.read_data_spark()
 
         # feature selection
         # df_new = self.feature_selection()
@@ -406,7 +501,7 @@ class SanFranciscoCrimeClassification:
 
         date_time_encoders = [
             DateTimeTransformer(
-                inputCol=column, outputCols=[column + "_sin", column + "_cos"]
+                input_col=column, output_cols=[column + "_sin", column + "_cos"]
             )
             for column in date_time_features
         ]
@@ -457,6 +552,26 @@ class SanFranciscoCrimeClassification:
         return transformed_data
 
     def train_model(self, model_name):
+        """
+        This method trains a model based on the given model name.
+
+        It first prepares the data pipeline by calling the `prepare_pipeline` method and then
+        splits the data into training and test sets. Depending on the 'model_name' parameter,
+        it fits a Logistic Regression, Random Forest, or Decision Tree model to the training data.
+
+        It also prints the first 5 rows of the training data and logs the model's information.
+        The trained model is saved into a .model file in the specified models directory.
+
+        Parameters:
+        model_name (str): The name of the model to be trained. Can be 'logistic_regression',
+                        'random_forest', or 'decision_tree'.
+
+        Raises:
+        ValueError: If an invalid 'model_name' is provided.
+
+        Returns:
+        None. The function saves the trained model to disk.
+        """
         # prepare the data
         transformed_data = self.prepare_pipeline()
 
@@ -470,10 +585,10 @@ class SanFranciscoCrimeClassification:
         print("Training the model...")
         if model_name == "logistic_regression":
             # define logistic regression to be reproducible
-            lr = LogisticRegression(
+            logistic_regression = LogisticRegression(
                 featuresCol="features", labelCol="label", maxIter=10
             )  # define the model
-            lr_model = lr.fit(train_data)  # fit the model
+            lr_model = logistic_regression.fit(train_data)  # fit the model
 
             for iteration, loss in enumerate(lr_model.summary.objectiveHistory):
                 print("Iteration", iteration, ": Loss =", loss)
@@ -482,40 +597,40 @@ class SanFranciscoCrimeClassification:
             utils.log_model_info(lr_model, self.output_dir)
 
             # save the model
-            model_name = lr.__class__.__name__
+            model_name = logistic_regression.__class__.__name__
             lr_model.write().overwrite().save(
                 os.path.join(self.models_dir, "baseline_" + model_name + ".model")
             )
 
         elif model_name == "random_forest":
-            rf = RandomForestClassifier(
+            random_forest = RandomForestClassifier(
                 labelCol="label", featuresCol="features", seed=42
             )  # define the model
 
-            rf_model = rf.fit(train_data)  # fit the model
+            rf_model = random_forest.fit(train_data)  # fit the model
 
             # save the summary in a file in the output path
             utils.log_model_info(rf_model, self.output_dir)
 
             # save the model
-            model_name = rf.__class__.__name__
+            model_name = random_forest.__class__.__name__
             rf_model.write().overwrite().save(
                 os.path.join(self.models_dir, "baseline_" + model_name + ".model")
             )
 
         # add the Decision Tree model
         elif model_name == "decision_tree":
-            dt = DecisionTreeClassifier(
+            decision_tree = DecisionTreeClassifier(
                 labelCol="label", featuresCol="features", seed=42
             )
 
-            dt_model = dt.fit(train_data)
+            dt_model = decision_tree.fit(train_data)
 
             # save the summary in a file in the output path
             utils.log_model_info(dt_model, self.output_dir, test_data=test_data)
 
             # save the model
-            model_name = dt.__class__.__name__
+            model_name = decision_tree.__class__.__name__
             dt_model.write().overwrite().save(
                 os.path.join(self.models_dir, "baseline_" + model_name + ".model")
             )
@@ -525,8 +640,6 @@ class SanFranciscoCrimeClassification:
 
 
 if __name__ == "__main__":
-
-
     model_names = [
         "logistic_regression",  # logistic regression model
         # "random_forest",  # random forest model
@@ -534,7 +647,6 @@ if __name__ == "__main__":
     ]
 
     for model_name in model_names:
-        
         # create an instance of the class
         modeling = SanFranciscoCrimeClassification(
             "./data/train.csv", "./output", "./models"
