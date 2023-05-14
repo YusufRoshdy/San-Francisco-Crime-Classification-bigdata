@@ -124,7 +124,10 @@ class HepyrParameterTuning:
 
         elif model_name == "random_forest":
             rf = RandomForestClassifier(
-                featuresCol="features", labelCol="label", predictionCol="prediction", seed=self.seed
+                featuresCol="features",
+                labelCol="label",
+                predictionCol="prediction",
+                seed=self.seed,
             )
             self.param_grid = (
                 ParamGridBuilder()
@@ -142,7 +145,10 @@ class HepyrParameterTuning:
             self.model = rf
         elif model_name == "decision_tree":
             dt = DecisionTreeClassifier(
-                featuresCol="features", labelCol="label", predictionCol="prediction", seed=self.seed
+                featuresCol="features",
+                labelCol="label",
+                predictionCol="prediction",
+                seed=self.seed,
             )
             # self.param_grid = (
             #     ParamGridBuilder()
@@ -158,12 +164,16 @@ class HepyrParameterTuning:
             )
             self.model = dt
         else:
-            raise ValueError(f"Model {model_name} is not supported")
+            raise ValueError("Model", model_name, " is not supported")
 
     def tune_model(self, train_data, test_data):
         # get the shape of the data
-        print(f"Train data shape: {train_data.count()} rows, {len(train_data.columns)} columns")
-        print(f"Fine tuning {self.model_name} model")
+        print(
+            "Train data shape:",
+            train_data.count(),
+            "rows, {len(train_data.columns)} columns",
+        )
+        print("Fine tuning", self.model_name, "model")
         if self.fine_tune_method == "cv_grid_search":
             # create the cross validator
             logging_evaluator = LoggingEvaluator(
@@ -182,18 +192,19 @@ class HepyrParameterTuning:
             # get the best model
             best_model = cv_model.bestModel
 
-            utils.log_model_info(best_model, self.output_dir, 'best', test_data=test_data)
+            utils.log_model_info(
+                best_model, self.output_dir, "best", test_data=test_data
+            )
 
             # save the best model
             model_name = best_model.__class__.__name__
             best_model.write().overwrite().save(
-                os.path.join(self.models_dir, f"best_{model_name}.model")
+                os.path.join(self.models_dir, "best_" + model_name + ".model")
             )
         else:
             self.fine_tune_rf(train_data, test_data)
 
     def fine_tune_rf(self, train_data, test_data):
-
         max_depths = [5, 10, 15]
         num_trees = [10, 20, 30]
 
@@ -223,13 +234,20 @@ class HepyrParameterTuning:
                 # Compute the accuracy on the test set
                 accuracy = evaluator.evaluate(predictions)
                 # Print the parameters and the score
-                print(f"NumTrees: {num_tree}, MaxDepth: {max_depth}, Score: {accuracy}")
+                print(
+                    "NumTrees:",
+                    num_tree,
+                    ", MaxDepth:",
+                    max_depth,
+                    ", Score:",
+                    accuracy,
+                )
                 # Check if we got a better score
                 if accuracy > best_score:
                     best_score = accuracy
                     best_params = (num_tree, max_depth)
 
-        print(f"Best parameters: {best_params}, Score: {best_score}")
+        print("Best parameters:", best_params, ", Score:", best_score)
         # save the best model
         rf = RandomForestClassifier(
             labelCol="label",
@@ -241,12 +259,12 @@ class HepyrParameterTuning:
         model = rf.fit(train_data)
 
         # save the model summary to the output directory
-        utils.log_model_info(model, self.output_dir, 'best')
+        utils.log_model_info(model, self.output_dir, "best")
 
         # save the best model
         model_name = model.__class__.__name__
         model.write().overwrite().save(
-            os.path.join(self.models_dir, f"best_{model_name}.model")
+            os.path.join(self.models_dir, "best_" + "model_name" + ".model")
         )
 
 
@@ -289,7 +307,6 @@ class SanFranciscoCrimeClassification:
         return df
 
     def feature_selection(self):
-
         cat_cols = ["DayOfWeek", "PdDistrict", "Resolution"]
 
         df_new = self.read_data_spark(self.data_path)
@@ -327,7 +344,6 @@ class SanFranciscoCrimeClassification:
         return result
 
     def prepare_pipeline(self):
-
         print("Preparing pipeline...")
 
         df_new = self.read_data_spark(self.data_path)
@@ -368,7 +384,7 @@ class SanFranciscoCrimeClassification:
 
         # tokenize the text
         tokenizers = [
-            Tokenizer(inputCol=column, outputCol=f"{column}_words")
+            Tokenizer(inputCol=column, outputCol=column + "_words")
             for column in text_features
         ]
 
@@ -377,15 +393,15 @@ class SanFranciscoCrimeClassification:
             Word2Vec(
                 vectorSize=3,
                 minCount=0,
-                inputCol=f"{column}_words",
-                outputCol=f"{column}_vec",
+                inputCol=column + "_words",
+                outputCol=column + "_vec",
             )
             for column in text_features
         ]
 
         date_time_encoders = [
             DateTimeTransformer(
-                inputCol=column, outputCols=[f"{column}_sin", f"{column}_cos"]
+                inputCol=column, outputCols=[column + "_sin", column + "_cos"]
             )
             for column in date_time_features
         ]
@@ -436,7 +452,6 @@ class SanFranciscoCrimeClassification:
         return transformed_data
 
     def train_model(self, model_name):
-
         # prepare the data
         transformed_data = self.prepare_pipeline()
 
@@ -456,7 +471,7 @@ class SanFranciscoCrimeClassification:
             lr_model = lr.fit(train_data)  # fit the model
 
             for iteration, loss in enumerate(lr_model.summary.objectiveHistory):
-                print(f"Iteration {iteration}: Loss = {loss}")
+                print("Iteration", iteration, ": Loss =", loss)
 
             # save the summary in a file in the output path
             utils.log_model_info(lr_model, self.output_dir)
@@ -464,7 +479,7 @@ class SanFranciscoCrimeClassification:
             # save the model
             model_name = lr.__class__.__name__
             lr_model.write().overwrite().save(
-                os.path.join(self.models_dir, f"baseline_{model_name}.model")
+                os.path.join(self.models_dir, "baseline_" + model_name + ".model")
             )
 
         elif model_name == "random_forest":
@@ -480,7 +495,7 @@ class SanFranciscoCrimeClassification:
             # save the model
             model_name = rf.__class__.__name__
             rf_model.write().overwrite().save(
-                os.path.join(self.models_dir, f"baseline_{model_name}.model")
+                os.path.join(self.models_dir, "baseline_" + model_name + ".model")
             )
 
         # add the Decision Tree model
@@ -497,7 +512,7 @@ class SanFranciscoCrimeClassification:
             # save the model
             model_name = dt.__class__.__name__
             dt_model.write().overwrite().save(
-                os.path.join(self.models_dir, f"baseline_{model_name}.model")
+                os.path.join(self.models_dir, "baseline_" + model_name + ".model")
             )
 
         else:
@@ -505,7 +520,6 @@ class SanFranciscoCrimeClassification:
 
 
 if __name__ == "__main__":
-
     model_name = "decision_tree"
 
     # create an instance of the class
