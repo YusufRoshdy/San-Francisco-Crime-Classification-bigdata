@@ -6,6 +6,7 @@ from pyspark.sql.types import (
     BooleanType,
     DateType,
     TimestampType,
+    DoubleType,
 )
 from pyspark.ml.feature import (
     ChiSqSelector,
@@ -30,6 +31,8 @@ from pyspark.ml.classification import LogisticRegression
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml import Transformer
 from pyspark.ml.param.shared import HasInputCol, HasOutputCols
+from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.functions import (
     udf,
     col,
@@ -47,11 +50,18 @@ import math
 
 from pyspark.sql import SparkSession
 import pandas as pd
+import utils
+import os
 
 # suppress warnings
 import warnings
 
 warnings.filterwarnings("ignore")
+
+# add python random seed
+import random
+
+random.seed(42)
 
 
 class DateTimeTransformer(Transformer, HasInputCol, HasOutputCols):
@@ -70,8 +80,150 @@ class DateTimeTransformer(Transformer, HasInputCol, HasOutputCols):
         return df
 
 
+class LoggingEvaluator(MulticlassClassificationEvaluator):
+    def __init__(self, **kwargs):
+        super(LoggingEvaluator, self).__init__(**kwargs)
+
+    def _evaluate(self, dataset):
+        metric = super(LoggingEvaluator, self)._evaluate(dataset)
+        print(f"The score for current fold: {metric}")
+        print("====================================")
+        return metric
+
+
+class HepyrParameterTuning:
+    def __init__(
+        self,
+        model_name,
+        fine_tune_method="cv_grid_search",
+        num_folds=3,
+        seed=42,
+        models_dir="./models/",
+        output_dir="./output/",
+    ):
+        self.model_name = model_name
+        self.fine_tune_method = fine_tune_method
+        self.num_folds = num_folds
+        self.seed = seed
+        self.models_dir = models_dir
+        self.output_dir = output_dir
+        if model_name == "logistic_regression":
+            lr = LogisticRegression(
+                featuresCol="features", labelCol="label", predictionCol="prediction"
+            )
+            self.param_grid = (
+                ParamGridBuilder()
+                .addGrid(lr.regParam, [0.0, 0.1, 0.5])
+                .addGrid(lr.elasticNetParam, [0.0, 0.5, 1.0])
+                .addGrid(lr.maxIter, [5, 10])
+                .addGrid(lr.tol, [1e-8, 1e-6, 1e-4])
+                .build()
+            )
+            self.model = lr
+
+        elif model_name == "random_forest":
+            rf = RandomForestClassifier(
+                featuresCol="features", labelCol="label", predictionCol="prediction", seed=self.seed
+            )
+            self.param_grid = (
+                ParamGridBuilder()
+                .addGrid(rf.maxDepth, [5, 10, 15])
+                .addGrid(rf.numTrees, [10, 20, 30])
+                .build()
+            )
+            self.model = rf
+        else:
+            raise ValueError(f"Model {model_name} is not supported")
+
+    def tune_model(self, train_data, test_data):
+        if self.fine_tune_method == "cv_grid_search":
+            # create the cross validator
+            logging_evaluator = LoggingEvaluator(
+                labelCol="label", predictionCol="prediction", metricName="accuracy"
+            )
+            cross_val = CrossValidator(
+                estimator=self.model,
+                estimatorParamMaps=self.param_grid,
+                evaluator=logging_evaluator,
+                numFolds=self.num_folds,
+            )
+
+            # fit the model
+            cv_model = cross_val.fit(train_data)
+
+            # get the best model
+            best_model = cv_model.bestModel
+
+            utils.log_model_info(best_model, self.output_dir, 'best')
+
+            # save the best model
+            model_name = best_model.__class__.__name__
+            best_model.write().overwrite().save(
+                os.path.join(self.models_dir, f"best_{model_name}.model")
+            )
+        else:
+            self.fine_tune_rf(train_data, test_data)
+
+    def fine_tune_rf(self, train_data, test_data):
+
+        max_depths = [5, 10, 15]
+        num_trees = [10, 20, 30]
+
+        # Initialize the best parameters and the best score
+        best_score = 0
+        best_params = None
+
+        # Loop over the parameters
+        for num_tree in num_trees:
+            for max_depth in max_depths:
+                # Create the model
+                rf = RandomForestClassifier(
+                    labelCol="label",
+                    featuresCol="features",
+                    numTrees=num_tree,
+                    maxDepth=max_depth,
+                    seed=self.seed,
+                )
+                # Fit the model
+                model = rf.fit(train_data)
+                # Make predictions
+                predictions = model.transform(test_data)
+                # Initialize evaluator
+                evaluator = MulticlassClassificationEvaluator(
+                    labelCol="label", predictionCol="prediction", metricName="accuracy"
+                )
+                # Compute the accuracy on the test set
+                accuracy = evaluator.evaluate(predictions)
+                # Print the parameters and the score
+                print(f"NumTrees: {num_tree}, MaxDepth: {max_depth}, Score: {accuracy}")
+                # Check if we got a better score
+                if accuracy > best_score:
+                    best_score = accuracy
+                    best_params = (num_tree, max_depth)
+
+        print(f"Best parameters: {best_params}, Score: {best_score}")
+        # save the best model
+        rf = RandomForestClassifier(
+            labelCol="label",
+            featuresCol="features",
+            numTrees=best_params[0],
+            maxDepth=best_params[1],
+            seed=self.seed,
+        )
+        model = rf.fit(train_data)
+
+        # save the model summary to the output directory
+        utils.log_model_info(model, self.output_dir, 'best')
+
+        # save the best model
+        model_name = model.__class__.__name__
+        model.write().overwrite().save(
+            os.path.join(self.models_dir, f"best_{model_name}.model")
+        )
+
+
 class SanFranciscoCrimeClassification:
-    def __init__(self, spark, data_path):
+    def __init__(self, data_path, output_dir, models_dir):
         port = 4050
         spark = (
             SparkSession.builder.master("local[*]")
@@ -84,8 +236,11 @@ class SanFranciscoCrimeClassification:
         spark.conf.set(
             "spark.sql.repl.eagerEval.enabled", True
         )  # Property used to format output tables better
+        spark.sparkContext.setLogLevel("ERROR")
         self.spark = spark
         self.data_path = data_path
+        self.output_dir = output_dir
+        self.models_dir = models_dir
 
     def read_data_spark(self, data_path):
         schema = StructType(
@@ -97,8 +252,8 @@ class SanFranciscoCrimeClassification:
                 StructField("PdDistrict", StringType(), True),
                 StructField("Resolution", StringType(), True),
                 StructField("Address", StringType(), True),
-                StructField("X", StringType(), True),
-                StructField("Y", StringType(), True),
+                StructField("X", DoubleType(), True),
+                StructField("Y", DoubleType(), True),
             ]
         )
 
@@ -144,6 +299,8 @@ class SanFranciscoCrimeClassification:
         return result
 
     def prepare_pipeline(self):
+
+        print("Preparing pipeline...")
 
         df_new = self.read_data_spark(self.data_path)
 
@@ -235,21 +392,33 @@ class SanFranciscoCrimeClassification:
             + [assembler]
         )
 
+        print("Fitting the pipeline...")
+
         # fit the pipeline
         model_pipeline = pipeline.fit(df_new)
-        transformed_data = model_pipeline.transform(df_new)
+        transformed_data = (
+            model_pipeline.transform(df_new)
+            .select("features", "Category_index")
+            .withColumnRenamed("Category_index", "label")
+        )
 
         return transformed_data
 
-    def train_model(self, model_name, output_path):
+    def train_model(self, model_name):
 
         # prepare the data
         transformed_data = self.prepare_pipeline()
 
         # split the data
-        train_data, test_data = transformed_data.randomSplit([0.7, 0.3])
+        train_data, test_data = transformed_data.randomSplit([0.7, 0.3], seed=42)
 
+        # print the first 5 rows of the training data
+        print("The first 5 rows of the training data:")
+        train_data.show(5, truncate=False)
+
+        print("Training the model...")
         if model_name == "logistic_regression":
+            # define logistic regression to be reproducible
             lr = LogisticRegression(
                 featuresCol="features", labelCol="label", maxIter=10
             )  # define the model
@@ -259,45 +428,47 @@ class SanFranciscoCrimeClassification:
                 print(f"Iteration {iteration}: Loss = {loss}")
 
             # save the summary in a file in the output path
-            with open(output_path + f"/summary_base_{model_name}_model.txt", "w") as f:
-                f.write(f"Accuracy: {lr_model.summary.accuracy}\n")
-                f.write(
-                    f"False positive rate by label:\n{lr_model.summary.falsePositiveRateByLabel}\n"
-                )
-                f.write(
-                    f"True positive rate by label:\n{lr_model.summary.truePositiveRateByLabel}\n"
-                )
-                f.write(f"F-measure by label:\n{lr_model.summary.fMeasureByLabel()}\n")
-                f.write(f"Precision by label:\n{lr_model.summary.precisionByLabel}\n")
-                f.write(f"Recall by label:\n{lr_model.summary.recallByLabel}\n")
-                f.write(f"Area under ROC: {lr_model.summary.areaUnderROC}\n")
-                f.write(f"ROC: {lr_model.summary.roc}\n")
-                f.write(
-                    f"Objective history: {[float(loss) for loss in lr_model.summary.objectiveHistory]}\n"
-                )
+            utils.log_model_info(lr_model, self.output_dir)
+
+            # save the model
+            model_name = lr.__class__.__name__
+            lr_model.write().overwrite().save(
+                os.path.join(self.models_dir, f"baseline_{model_name}.model")
+            )
 
         elif model_name == "random_forest":
             rf = RandomForestClassifier(
-                labelCol="label", featuresCol="features", seed=24
-            ) # define the model
+                labelCol="label", featuresCol="features", seed=42
+            )  # define the model
 
-            rf_model = rf.fit(train_data) # fit the model
+            rf_model = rf.fit(train_data)  # fit the model
 
             # save the summary in a file in the output path
-            with open(output_path + f"/summary_base_{model_name}_model.txt", "w") as f:
-                f.write(f"Accuracy: {rf_model.summary.accuracy}\n")
-                f.write(
-                    f"False positive rate by label:\n{rf_model.summary.falsePositiveRateByLabel}\n"
-                )
-                f.write(
-                    f"True positive rate by label:\n{rf_model.summary.truePositiveRateByLabel}\n"
-                )
-                f.write(f"F-measure by label:\n{rf_model.summary.fMeasureByLabel()}\n")
-                f.write(f"Precision by label:\n{rf_model.summary.precisionByLabel}\n")
-                f.write(f"Recall by label:\n{rf_model.summary.recallByLabel}\n")
-                f.write(f"Area under ROC: {rf_model.summary.areaUnderROC}\n")
-                f.write(f"ROC: {rf_model.summary.roc}\n")
+            utils.log_model_info(rf_model, self.output_dir)
+
+            # save the model
+            model_name = rf.__class__.__name__
+            rf_model.write().overwrite().save(
+                os.path.join(self.models_dir, f"baseline_{model_name}.model")
+            )
 
         else:
             # the current model is not supported
             print("The model is not supported")
+
+
+if __name__ == "__main__":
+
+    # create an instance of the class
+    modeling = SanFranciscoCrimeClassification(
+        "./data/train.csv", "./output", "./models"
+    )
+
+    # # train the model
+    # modeling.train_model("logistic_regression")
+
+    processed_data = modeling.prepare_pipeline()
+    train_data, test_data = processed_data.randomSplit([0.7, 0.3], seed=42)
+
+    fine_tuner = HepyrParameterTuning("logistic_regression", num_folds=2)
+    fine_tuner.tune_model(train_data, test_data)
