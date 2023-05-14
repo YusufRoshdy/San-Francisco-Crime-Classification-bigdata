@@ -2,3 +2,5 @@ pylint
 pyspark
 pandas
 streamlit
+seaborn
+geopandas
