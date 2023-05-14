@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 data = pd.read_csv("data/train.csv")
 
@@ -21,7 +23,7 @@ st.markdown(
 )
 
 st.image(
-    "https://www.kaggleusercontent.com/kf/123989573/eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..K2ZBnkAkLRLB8aP28TTrjw.VJpiJ1s3aw_YWMY_r4NtukBEelhsA4BZovjPdgE7yA0SzGIn-H76nATDGlHmuAab6HkjOsowDcQa1i68Ehfqu7OtM1r-Zb2Ey0JBsJhoLzWtscbFi3xljOpC9JAWUXIb8LsDlv8HekaFvBazQq5I1sQu0Lq_L1Zke8r9B0PQ7mXDxEO7fzOjF8YvdwQMNJgBmOVIPcaxwoL6AjJCH0-WxUSwmyAxTwhRWJHa99lVbypOQXTjPE3h5cS06u77V0K5gWUPgFyUqgIEY-h3UTL-EMs6OG9O-uMNlH5cNM7Yl1AOU7Ou17s06LAmiN_Mn85Dm0RfygM5LLq79YR4O6T_MNSNjdcQreq3ctTRDoW11vFAaSXvEv037rBJdZWU4kLw2khxqGBl7d_71uInMKkmhkdxXn2XkJ6eJvAuUBDpZo8YZ1N4JaNHQhSwOC72G8gvsTwH8i96Q1lEnaViyUp8P1e66sdjTClVzp8gEeApRUwVVD5AmBz7koLN7c42ZxqdbggE9TCm1Ip9IV1ownNDA653mp-Jyegbb9YCKaEvWOM3PGJ330pe6QLSYsFBSWv7pbJwzWMCcDlQtp5KTTCaLxCjlvoj3ZdFOtdsWydH2HLKNPDK7b6tkB4IH7cAc8IjqG7guegxbQ6GnS83Bj-dQQ.F86tqCv9v5zeCo2p9c8_qw/__results___files/__results___44_0.png",
+    "output/images/SF_crime_areas.png",
     caption="San Francisco Crime Classification",
     width=400,
 )
@@ -116,6 +118,162 @@ with plt.style.context("fivethirtyeight"):
     plt.legend(bbox_to_anchor=(1.0, 1.0), loc="upper left")
 
 st.pyplot(fig)
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import streamlit as st
+
+fig, ax = plt.subplots(1, 1, figsize=(19, 6))
+sns.histplot(x='Category', data=data, palette='Paired', ax=ax, color = 'red')
+ax.tick_params(axis='x', rotation=90)
+plt.title("Category crimes", fontsize=22)
+
+st.pyplot(fig)
+
+# interpolation by day of week
+week = data['DayOfWeek'].value_counts()
+
+fig, ax = plt.subplots(figsize=(12,8))
+week.plot(kind="bar", table=True,  color='g', ax=ax)
+plt.xticks([])
+plt.xlabel('days and weeks',fontsize=15,labelpad=30)
+plt.ylabel('Number of criminals',fontsize=25)
+plt.title('Interpolation by day of the week',fontsize=25)
+
+st.pyplot(fig)
+
+st.markdown('''
+### Description of the plot
+This plot shows the frequency of crimes for each day of the week in our dataset. The y-axis represents the number of crimes, while the x-axis represents the days of the week. The plot is a bar chart, with each bar corresponding to a day of the week.
+''')
+
+st.markdown('''
+### Descriptive statistics
+''')
+
+st.write(week.describe())
+
+
+# Estimate the number of crimes by district
+dist = data["PdDistrict"].value_counts()
+
+fig, ax = plt.subplots(figsize=(12,8))
+dist.plot(kind="bar", table=True, color='g', ax=ax)
+plt.xticks([])
+plt.xlabel('area',fontsize=15,labelpad=30)
+plt.ylabel('Number of criminals',fontsize=25)
+plt.title('Precipitation by regions',fontsize=25)
+
+st.pyplot(fig)
+
+st.markdown('''
+### Description of the plot
+This plot shows the frequency of crimes for each district in our dataset. The y-axis represents the number of crimes, while the x-axis represents the different districts. The plot is a bar chart, with each bar corresponding to a district.
+''')
+
+st.markdown('''
+### Descriptive statistics
+''')
+
+st.write(dist.describe())
+
+# Visual breakdown of categories of crimes by their number TOP-10 categories:
+kind = data['Category'].value_counts()
+
+fig, ax = plt.subplots(figsize=(20,12))
+kind.plot(kind="barh", color='g', ax=ax)
+
+plt.ylabel('Type',fontsize=15)
+plt.xlabel('Number of criminals',fontsize=15)
+plt.title('Videos of criminals',fontsize=25)
+
+st.pyplot(fig)
+
+st.markdown('''
+### Description of the plot
+This horizontal bar plot shows the frequency of different categories of crimes in our dataset. 
+The x-axis represents the number of crimes, while the y-axis represents different crime categories.
+Each bar corresponds to a different category of crime.
+''')
+
+
+# Let's see how many crimes in different categories occur in different periods of time:
+data['Dates'] = pd.to_datetime(data['Dates'])
+data['Hour'] = data['Dates'].dt.hour
+data_new = data.groupby(['Hour', 'Category'],
+                            as_index=False).count().iloc[:, :4]
+data_new.rename(columns={'Dates': 'Incidents'}, inplace=True)
+
+unique_cats = list(data_new.groupby(['Category']).sum().sort_values(['Incidents']).index)
+
+for i in range(0, len(unique_cats), 5):
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize=(14, 10))
+    ax = sns.lineplot(x='Hour', y='Incidents', data=data_new[data_new['Category'].isin(unique_cats[i: i+5])], hue='Category')
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=6)
+    plt.suptitle('Number of crimes in an interval of time')
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    st.pyplot(fig)
+
+    st.markdown(f'''
+    ### Description of the plot for crime categories {unique_cats[i]} to {unique_cats[min(i+4, len(unique_cats)-1)]}
+    This line plot shows the number of crimes committed at different hours for the crime categories {unique_cats[i]} to {unique_cats[min(i+4, len(unique_cats)-1)]}.
+    The x-axis represents the hour of the day, while the y-axis represents the number of incidents.
+    Each line corresponds to a different category of crime.
+    ''')
+
+
+# get a the unique values long and lat
+long = data['X'].unique()
+lat = data['Y'].unique()
+
+# get the min and max values for long and lat
+min_long = min(long)
+max_long = max(long)
+min_lat = min(lat)
+max_lat = max(lat)
+
+# print the min and max values for long and lat in st
+st.write(f"min_long: {min_long}")
+st.write(f"max_long: {max_long}")
+st.write(f"min_lat: {min_lat}")
+st.write(f"max_lat: {max_lat}")
+
+
+# Heatmap by crime category
+# Get the unique categories
+top_10_categories = data['Category'].value_counts().head(10).index
+print(top_10_categories)
+
+# For each category
+for category in top_10_categories:
+
+    st.subheader(f'Heatmap for {category} category')
+
+    # Subset the dataframe based on category
+    df_subset = data[data['Category'] == category]
+
+    # Check if data is not empty
+    if not df_subset.empty:
+
+        # Sample subset if size is too large for performance
+        if len(df_subset) > 5000:
+            df_subset = df_subset.sample(n=5000, random_state=1)
+
+        # Create the KDE plot
+        fig, ax = plt.subplots()
+        sns.kdeplot(data=df_subset, x='X', y='Y', fill=True, ax=ax)
+        plt.title(f'Density of {category} Crimes in SF')
+        plt.xlabel('Longitude')
+        plt.ylabel('Latitude')
+        st.pyplot(fig)
+        
+        st.write(f"The above plot shows the geographical distribution of '{category}' crimes in San Francisco. The color intensity represents the density of crimes, with darker areas indicating higher crime rates.")
+    
+    else:
+        st.write(f"No data available for the category: {category}")
+
 
 
 # st.markdown('---')
