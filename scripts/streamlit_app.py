@@ -246,52 +246,62 @@ st.header('Predictive Data Analytics')
 st.subheader('ML Model')
 st.markdown('##### 1. Linear Regression Model')
 st.markdown('Baseline model')
-st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 0.01], ['....','....']], columns = ['setting', 'value']))
+st.table(pd.DataFrame([['regParam', 0.0], ['elasticNetParam', 0.0], ['maxIter',10], ["tol", '1e-06']], columns = ['setting', 'value']))
+st.table(pd.DataFrame([['Accuracy', 0.6985496355790641], ['False Positives avg by label', '0.05666741806233335'], ['True Positive avg by label', 0.9788388319688873], ["f1", 0.8871019096489474]], columns = ['metric', 'value']))
+
 
 # fine-tuned model
 st.markdown('Fine-tuned model')
-st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 0.01], ['....','....']], columns = ['setting', 'value']))
-
+st.table(pd.DataFrame([['regParam', 0.0], ['elasticNetParam', 0.0], ['maxIter',10], ["tol", '1e-08']], columns = ['setting', 'value']))
 # model evaluation
-st.markdown('Model evaluation')
-
-# model interpretation
-st.markdown('Model interpretation')
+st.table(pd.DataFrame([['Accuracy', 0.7211403179188401], ['False Positives avg by label', '0.04516662636230438'], ['True Positive avg by label', 0.9733788562767882], ["f1", 0.9035827883949881]], columns = ['metric', 'value']))
 
 
 
-st.markdown('#####2. Decision Tree Model')
+
+st.markdown('##### 2. Decision Tree Model')
 st.markdown('Baseline model')
-st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
+st.table(pd.DataFrame([['MaxDepth', 5], ['MaxBins', 32]], columns = ['setting', 'value']))
+# write these in a table
+# Accuracy: 0.9171244273243224
+
+# weightedPrecision: 0.9230359298383011
+# weightedRecall: 0.9171244273243224
+# f1: 0.912744728619725
+st.table(pd.DataFrame([['Accuracy', 0.7102470008129526], ['weightedPrecision']], columns = ['metric', 'value']))
+
+
 
 # fine-tuned model
 st.markdown('Fine-tuned model')
-st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
+st.table(pd.DataFrame([['MaxDepth', 10], ['MaxBins', 30]], columns = ['setting', 'value']))
+# write these in a table
+# Accuracy: 0.9171244273243224
 
-# model evaluation
-st.markdown('Model evaluation')
+# weightedPrecision: 0.9230359298383011
+# weightedRecall: 0.9171244273243224
+# f1: 0.912744728619725
+st.table(pd.DataFrame([['Accuracy', 0.9171244273243224], ['weightedPrecision', 0.9230359298383011], ['weightedRecall', 0.9171244273243224], ["f1", 0.912744728619725]], columns = ['metric', 'value']))
 
-# model interpretation
-st.markdown('Model interpretation')
 
-st.markdown('#####3. Random Forest Model')
+st.markdown('##### 3. Random Forest Model')
 st.markdown('Baseline model')
-st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
+st.table(pd.DataFrame([['NumTrees', 20], ['MaxDepth', 5]], columns = ['setting', 'value']))
+# write these in a table
+# Accuracy: 0.9171244273243224
+
+# weightedPrecision: 0.9230359298383011
+# weightedRecall: 0.9171244273243224
+# f1: 0.912744728619725
+st.table(pd.DataFrame([['Accuracy', 0.6266202133663842], ['False Positives avg by label', 0.1723827649734016], ['True Positive avg by label', 0.9644944810920253], ["f1", 0.7259036237115777]], columns = ['metric', 'value']))
 
 # fine-tuned model
 st.markdown('Fine-tuned model')
-st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
+st.table(pd.DataFrame([['NumTrees', 10], ['MaxDepth', 15]], columns = ['setting', 'value']))
+# write these in a table
+# Accuracy: 0.9171244273243224
 
-# model evaluation
-st.markdown('Model evaluation')
-
-
-st.subheader('Results')
-st.text('Here you can display metrics you are using and values you got')
-st.table(pd.DataFrame([]))
-st.markdown('<center>Results table</center>', unsafe_allow_html = True)
-st.subheader('Training vs. Error chart')
-st.write("matplotlib or altair chart")
-st.subheader('Prediction')
-st.text('Given a sample, predict its value and display results in a table.')
-st.text('Here you can use input elements but it is not mandatory')
+# weightedPrecision: 0.9230359298383011
+# weightedRecall: 0.9171244273243224
+# f1: 0.912744728619725
+st.table(pd.DataFrame([['Accuracy', 0.9707308424865527], ['False Positives avg by label', '2.8435460644306917e-05'], ['True Positive avg by label', 0.998546559101153], ["f1", 0.9644944810920253]], columns = ['metric', 'value']))
