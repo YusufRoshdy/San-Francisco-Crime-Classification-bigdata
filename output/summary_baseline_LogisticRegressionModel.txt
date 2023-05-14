@@ -1,6 +1,7 @@
 Model name: LogisticRegressionModel
 
-Model parameters:(regParam): 0.0
+Model parameters:
+(regParam): 0.0
 (elasticNetParam): 0.0
 (maxIter): 10
 (tol): 1e-06
