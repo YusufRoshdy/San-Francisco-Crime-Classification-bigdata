@@ -223,76 +223,75 @@ for i in range(0, len(unique_cats), 5):
     Each line corresponds to a different category of crime.
     ''')
 
+# load images from output/images/ the crime categories
+image_names = ['ASSAULT', 'LARCENY-THEFT', 'DRUG-NARCOTIC', 'NON-CRIMINAL', 'OTHER OFFENSES']
+from PIL import Image
 
-# get a the unique values long and lat
-long = data['X'].unique()
-lat = data['Y'].unique()
+for image_name in image_names:
+    image = Image.open(f'output/images/{image_name}.png')
+    st.image(image, caption=image_name, use_column_width=True)
 
-# get the min and max values for long and lat
-min_long = min(long)
-max_long = max(long)
-min_lat = min(lat)
-max_lat = max(lat)
-
-# print the min and max values for long and lat in st
-st.write(f"min_long: {min_long}")
-st.write(f"max_long: {max_long}")
-st.write(f"min_lat: {min_lat}")
-st.write(f"max_lat: {max_lat}")
-
-
-# Heatmap by crime category
-# Get the unique categories
-top_10_categories = data['Category'].value_counts().head(10).index
-print(top_10_categories)
-
-# For each category
-for category in top_10_categories:
-
-    st.subheader(f'Heatmap for {category} category')
-
-    # Subset the dataframe based on category
-    df_subset = data[data['Category'] == category]
-
-    # Check if data is not empty
-    if not df_subset.empty:
-
-        # Sample subset if size is too large for performance
-        if len(df_subset) > 5000:
-            df_subset = df_subset.sample(n=5000, random_state=1)
-
-        # Create the KDE plot
-        fig, ax = plt.subplots()
-        sns.kdeplot(data=df_subset, x='X', y='Y', fill=True, ax=ax)
-        plt.title(f'Density of {category} Crimes in SF')
-        plt.xlabel('Longitude')
-        plt.ylabel('Latitude')
-        st.pyplot(fig)
-        
-        st.write(f"The above plot shows the geographical distribution of '{category}' crimes in San Francisco. The color intensity represents the density of crimes, with darker areas indicating higher crime rates.")
-    
-    else:
-        st.write(f"No data available for the category: {category}")
+st.markdown('''
+### Description of the images
+These images show the number of crimes committed at different hours for the crime categories ASSAULT, LARCENY-THEFT, DRUG-NARCOTIC, NON-CRIMINAL, and OTHER OFFENSES.
+Each image corresponds to a different category of crime.
+''')
 
 
 
-# st.markdown('---')
-# st.header('Predictive Data Analytics')
-# st.subheader('ML Model')
-# st.markdown('1. Linear Regression Model')
-# st.markdown('Settings of the model')
-# st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 0.01], ['....','....']], columns = ['setting', 'value']))
 
-# st.markdown('2. SVC Regressor')
-# st.markdown('Settings of the model')
-# st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
 
-# st.subheader('Results')
-# st.text('Here you can display metrics you are using and values you got')
-# st.table(pd.DataFrame([]))
-# st.markdown('<center>Results table</center>', unsafe_allow_html = True)
-# st.subheader('Training vs. Error chart')
-# st.write("matplotlib or altair chart")
-# st.subheader('Prediction')
-# st.text('Given a sample, predict its value and display results in a table.')
-# st.text('Here you can use input elements but it is not mandatory')
+st.markdown('---')
+st.header('Predictive Data Analytics')
+st.subheader('ML Model')
+st.markdown('##### 1. Linear Regression Model')
+st.markdown('Baseline model')
+st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 0.01], ['....','....']], columns = ['setting', 'value']))
+
+# fine-tuned model
+st.markdown('Fine-tuned model')
+st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 0.01], ['....','....']], columns = ['setting', 'value']))
+
+# model evaluation
+st.markdown('Model evaluation')
+
+# model interpretation
+st.markdown('Model interpretation')
+
+
+
+st.markdown('#####2. Decision Tree Model')
+st.markdown('Baseline model')
+st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
+
+# fine-tuned model
+st.markdown('Fine-tuned model')
+st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
+
+# model evaluation
+st.markdown('Model evaluation')
+
+# model interpretation
+st.markdown('Model interpretation')
+
+st.markdown('#####3. Random Forest Model')
+st.markdown('Baseline model')
+st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
+
+# fine-tuned model
+st.markdown('Fine-tuned model')
+st.table(pd.DataFrame([['setting1', 1.0], ['setting2', 'linear'], ['....','....']], columns = ['setting', 'value']))
+
+# model evaluation
+st.markdown('Model evaluation')
+
+
+st.subheader('Results')
+st.text('Here you can display metrics you are using and values you got')
+st.table(pd.DataFrame([]))
+st.markdown('<center>Results table</center>', unsafe_allow_html = True)
+st.subheader('Training vs. Error chart')
+st.write("matplotlib or altair chart")
+st.subheader('Prediction')
+st.text('Given a sample, predict its value and display results in a table.')
+st.text('Here you can use input elements but it is not mandatory')
