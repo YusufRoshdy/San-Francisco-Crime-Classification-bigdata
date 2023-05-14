@@ -71,7 +71,7 @@ class DateTimeTransformer(Transformer, HasInputCol, HasOutputCols):
         self._set(inputCol=inputCol)
         self._set(outputCols=outputCols)
 
-    def _transform(self, df) -> DataFrame:
+    def _transform(self, df):
         input_col = self.getInputCol()
         output_cols = self.getOutputCols()
 
@@ -520,7 +520,6 @@ class SanFranciscoCrimeClassification:
 
 
 if __name__ == "__main__":
-
     model_name = "logistic_regression"
     # create an instance of the class
     modeling = SanFranciscoCrimeClassification(
