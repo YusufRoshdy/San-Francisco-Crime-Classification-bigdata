@@ -506,18 +506,20 @@ class SanFranciscoCrimeClassification:
 
 if __name__ == "__main__":
 
-    model_name = "decision_tree"
+    model_name = "logistic_regression"
 
     # create an instance of the class
     modeling = SanFranciscoCrimeClassification(
         "./data/train.csv", "./output", "./models"
     )
 
-    # # train the model
-    # modeling.train_model(model_name)
+    # train the model
+    modeling.train_model(model_name)
 
-    processed_data = modeling.prepare_pipeline()
-    train_data, test_data = processed_data.randomSplit([0.7, 0.3], seed=42)
+    # processed_data = modeling.prepare_pipeline()
+    # train_data, test_data = processed_data.randomSplit([0.7, 0.3], seed=42)
 
-    fine_tuner = HepyrParameterTuning(model_name, num_folds=2)
-    fine_tuner.tune_model(train_data, test_data)
+    # # fine_tuner = HepyrParameterTuning(model_name, num_folds=2)
+    # # fine_tuner.tune_model(train_data, test_data)
+
+    # utils.get_models_predictions("./models", test_data=test_data)
