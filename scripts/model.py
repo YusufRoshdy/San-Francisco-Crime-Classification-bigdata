@@ -26,6 +26,8 @@ from pyspark.ml.feature import (
     Word2VecModel,
     Word2Vec,
 )
+
+from pyspark.sql.functions import from_unixtime, col
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import LogisticRegression
 from pyspark.ml.classification import RandomForestClassifier
@@ -270,15 +272,15 @@ class HepyrParameterTuning:
 
 class SanFranciscoCrimeClassification:
     def __init__(self, data_path, output_dir, models_dir):
-        port = 4050
         spark = (
-            SparkSession.builder.master("local[*]")
-            .appName("CrimeClassifier")
-            .config("spark.ui.port", str(port))
-            .config("spark.driver.memory", "4g")
-            .config("spark.executor.memory", "4g")
+            SparkSession.builder.appName("BDT Project")
+            .config("spark.sql.catalogImplementation", "hive")
+            .config("hive.metastore.uris", "thrift://sandbox-hdp.hortonworks.com:9083")
+            .config("spark.sql.avro.compression.codec", "snappy")
+            .enableHiveSupport()
             .getOrCreate()
         )
+
         spark.conf.set(
             "spark.sql.repl.eagerEval.enabled", True
         )  # Property used to format output tables better
@@ -289,21 +291,24 @@ class SanFranciscoCrimeClassification:
         self.models_dir = models_dir
 
     def read_data_spark(self, data_path):
-        schema = StructType(
-            [
-                StructField("Dates", TimestampType(), True),
-                StructField("Category", StringType(), True),
-                StructField("Descript", StringType(), True),
-                StructField("DayOfWeek", StringType(), True),
-                StructField("PdDistrict", StringType(), True),
-                StructField("Resolution", StringType(), True),
-                StructField("Address", StringType(), True),
-                StructField("X", DoubleType(), True),
-                StructField("Y", DoubleType(), True),
-            ]
-        )
+        df = self.spark.read.format("avro").table("projectdb.crime_data")
+        df.createOrReplaceTempView("df")
 
-        df = self.spark.read.csv(data_path, header=True, schema=schema)
+        df = df.withColumn("Dates", (col("Dates") / 1000))
+        df = df.withColumn("Dates", from_unixtime(col("Dates")).cast("timestamp"))
+        df = (
+            df.withColumnRenamed(" id", "Id")
+            .withColumnRenamed("Dates", "Dates")
+            .withColumnRenamed("category", "Category")
+            .withColumnRenamed("descript", "Descript")
+            .withColumnRenamed("day_of_week", "DayOfWeek")
+            .withColumnRenamed("pd_district", "PdDistrict")
+            .withColumnRenamed("resolution", "Resolution")
+            .withColumnRenamed("address", "Address")
+            .withColumnRenamed("x", "X")
+            .withColumnRenamed("y", "Y")
+        )
+        print(df)
         return df
 
     def feature_selection(self):
