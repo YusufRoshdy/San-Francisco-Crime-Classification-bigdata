@@ -29,6 +29,7 @@ from pyspark.ml.feature import (
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import LogisticRegression
 from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.classification import DecisionTreeClassifier
 from pyspark.ml import Transformer
 from pyspark.ml.param.shared import HasInputCol, HasOutputCols
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
@@ -70,7 +71,7 @@ class DateTimeTransformer(Transformer, HasInputCol, HasOutputCols):
         self._set(inputCol=inputCol)
         self._set(outputCols=outputCols)
 
-    def _transform(self, df: DataFrame) -> DataFrame:
+    def _transform(self, df) -> DataFrame:
         input_col = self.getInputCol()
         output_cols = self.getOutputCols()
 
@@ -86,7 +87,7 @@ class LoggingEvaluator(MulticlassClassificationEvaluator):
 
     def _evaluate(self, dataset):
         metric = super(LoggingEvaluator, self)._evaluate(dataset)
-        print(f"The score for current fold: {metric}")
+        print("The score for current fold:", metric)
         print("====================================")
         return metric
 
@@ -131,11 +132,38 @@ class HepyrParameterTuning:
                 .addGrid(rf.numTrees, [10, 20, 30])
                 .build()
             )
+            self.param_grid = (
+                ParamGridBuilder()
+                .addGrid(rf.maxDepth, [15])
+                .addGrid(rf.numTrees, [1])
+                .addGrid(rf.maxBins, [20])
+                .build()
+            )
             self.model = rf
+        elif model_name == "decision_tree":
+            dt = DecisionTreeClassifier(
+                featuresCol="features", labelCol="label", predictionCol="prediction", seed=self.seed
+            )
+            # self.param_grid = (
+            #     ParamGridBuilder()
+            #     .addGrid(dt.maxDepth, [5, 10, 15])
+            #     .addGrid(dt.maxBins, [10, 20, 30])
+            #     .build()
+            # )
+            self.param_grid = (
+                ParamGridBuilder()
+                .addGrid(dt.maxDepth, [10])
+                .addGrid(dt.maxBins, [30])
+                .build()
+            )
+            self.model = dt
         else:
             raise ValueError(f"Model {model_name} is not supported")
 
     def tune_model(self, train_data, test_data):
+        # get the shape of the data
+        print(f"Train data shape: {train_data.count()} rows, {len(train_data.columns)} columns")
+        print(f"Fine tuning {self.model_name} model")
         if self.fine_tune_method == "cv_grid_search":
             # create the cross validator
             logging_evaluator = LoggingEvaluator(
@@ -154,7 +182,7 @@ class HepyrParameterTuning:
             # get the best model
             best_model = cv_model.bestModel
 
-            utils.log_model_info(best_model, self.output_dir, 'best')
+            utils.log_model_info(best_model, self.output_dir, 'best', test_data=test_data)
 
             # save the best model
             model_name = best_model.__class__.__name__
@@ -227,7 +255,7 @@ class SanFranciscoCrimeClassification:
         port = 4050
         spark = (
             SparkSession.builder.master("local[*]")
-            .appName("Colab")
+            .appName("CrimeClassifier")
             .config("spark.ui.port", str(port))
             .config("spark.driver.memory", "4g")
             .config("spark.executor.memory", "4g")
@@ -303,6 +331,9 @@ class SanFranciscoCrimeClassification:
         print("Preparing pipeline...")
 
         df_new = self.read_data_spark(self.data_path)
+
+        # feature selection
+        # df_new = self.feature_selection()
 
         cat_features = ["DayOfWeek", "PdDistrict", "Resolution", "Category"]
         text_features = ["Descript"]
@@ -452,12 +483,30 @@ class SanFranciscoCrimeClassification:
                 os.path.join(self.models_dir, f"baseline_{model_name}.model")
             )
 
+        # add the Decision Tree model
+        elif model_name == "decision_tree":
+            dt = DecisionTreeClassifier(
+                labelCol="label", featuresCol="features", seed=42
+            )
+
+            dt_model = dt.fit(train_data)
+
+            # save the summary in a file in the output path
+            utils.log_model_info(dt_model, self.output_dir, test_data=test_data)
+
+            # save the model
+            model_name = dt.__class__.__name__
+            dt_model.write().overwrite().save(
+                os.path.join(self.models_dir, f"baseline_{model_name}.model")
+            )
+
         else:
-            # the current model is not supported
-            print("The model is not supported")
+            raise ValueError("Invalid model name!")
 
 
 if __name__ == "__main__":
+
+    model_name = "decision_tree"
 
     # create an instance of the class
     modeling = SanFranciscoCrimeClassification(
@@ -465,10 +514,10 @@ if __name__ == "__main__":
     )
 
     # # train the model
-    # modeling.train_model("logistic_regression")
+    # modeling.train_model(model_name)
 
     processed_data = modeling.prepare_pipeline()
     train_data, test_data = processed_data.randomSplit([0.7, 0.3], seed=42)
 
-    fine_tuner = HepyrParameterTuning("logistic_regression", num_folds=2)
+    fine_tuner = HepyrParameterTuning(model_name, num_folds=2)
     fine_tuner.tune_model(train_data, test_data)
