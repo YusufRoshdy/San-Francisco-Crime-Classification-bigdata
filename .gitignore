@@ -3,3 +3,4 @@ train_full.csv
 
 .idea
 venv
+.vscode/settings.json
